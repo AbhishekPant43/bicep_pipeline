@@ -1,6 +1,6 @@
 targetScope = 'resourceGroup'
 
-param aksName string = 'falcon-ai-test-aks'
+param aksName string = 'test-aks'
 param location string = resourceGroup().location
 param kubernetesVersion string = '1.36.3'
 
@@ -9,12 +9,12 @@ param adminUsername string = 'azureuser'
 @secure()
 param sshPublicKey string
 
-param systemNodeVmSize string = 'Standard_B2s'
+param systemNodeVmSize string = 'Standard_B2pls_v2'
 param systemNodeCount int = 1
 param systemMinNodeCount int = 1
 param systemMaxNodeCount int = 1
 
-param userNodeVmSize string = 'Standard_B2s'
+param userNodeVmSize string = 'Standard_B2pls_v2'
 param userNodeCount int = 0
 param userMinNodeCount int = 0
 param userMaxNodeCount int = 1
@@ -157,4 +157,3 @@ resource aks 'Microsoft.ContainerService/managedClusters@2026-02-01' = {
 output aksName string = aks.name
 output aksResourceId string = aks.id
 output aksLocation string = aks.location
-output aksKubeletIdentityObjectId string = aks.properties.identityProfile.kubeletidentity.objectId

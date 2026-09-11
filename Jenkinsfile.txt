@@ -1,0 +1,92 @@
+pipeline {
+    agent any
+
+    environment {
+        AZURE_CLIENT_ID       = credentials('AZURE_CLIENT_ID')
+        AZURE_CLIENT_SECRET   = credentials('AZURE_CLIENT_SECRET')
+        AZURE_TENANT_ID       = credentials('AZURE_TENANT_ID')
+        AZURE_SUBSCRIPTION_ID = credentials('AZURE_SUBSCRIPTION_ID')
+        AKS_SSH_PUBLIC_KEY    = credentials('AKS_SSH_PUBLIC_KEY')
+        RESOURCE_GROUP        = 'falcon-ai-test-rg'
+        LOCATION              = 'eastus'
+        DEPLOYMENT_NAME       = "aks-deploy-${BUILD_NUMBER}"
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Azure Login') {
+            steps {
+                sh '''
+                    az login --service-principal \
+                        -u "$AZURE_CLIENT_ID" \
+                        -p "$AZURE_CLIENT_SECRET" \
+                        --tenant "$AZURE_TENANT_ID"
+                    az account set --subscription "$AZURE_SUBSCRIPTION_ID"
+                '''
+            }
+        }
+
+        stage('Ensure Resource Group Exists') {
+            steps {
+                sh '''
+                    az group create \
+                        --name "$RESOURCE_GROUP" \
+                        --location "$LOCATION"
+                '''
+            }
+        }
+
+        stage('Validate Bicep') {
+            steps {
+                sh '''
+                    az deployment group validate \
+                        --resource-group "$RESOURCE_GROUP" \
+                        --template-file main.bicep \
+                        --parameters sshPublicKey="$AKS_SSH_PUBLIC_KEY"
+                '''
+            }
+        }
+
+        stage('Deploy AKS') {
+            steps {
+                sh '''
+                    az deployment group create \
+                        --name "$DEPLOYMENT_NAME" \
+                        --resource-group "$RESOURCE_GROUP" \
+                        --template-file main.bicep \
+                        --parameters sshPublicKey="$AKS_SSH_PUBLIC_KEY" \
+                        --parameters location="$LOCATION"
+                '''
+            }
+        }
+
+        stage('Show Outputs') {
+            steps {
+                sh '''
+                    az deployment group show \
+                        --name "$DEPLOYMENT_NAME" \
+                        --resource-group "$RESOURCE_GROUP" \
+                        --query properties.outputs
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            sh 'az logout || true'
+        }
+        success {
+            echo 'AKS cluster deployed successfully.'
+        }
+        failure {
+            echo 'Deployment failed — check logs above.'
+        }
+    }
+}
